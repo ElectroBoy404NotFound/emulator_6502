@@ -2,17 +2,19 @@
 
 #include "6502.h"
 
-uint8_t rom[32 * 1024];
+uint8_t mem[65536];
 
 uint8_t CPU6502_read_memory(uint16_t address) {
     // printf("Read from memory: Address: %04X\r\n", address);
     
-    if(address >= 0x7FFF && address <= 0xFFFF) {
-        // printf("Reading from ROM at address: %04X  %02X\r\n", address - 0x8000, rom[address - 0x8000]);
-        return rom[address - 0x8000];
-    }
+    return mem[address];
 
-    return 0x00;
+    // if(address >= 0x7FFF && address <= 0xFFFF) {
+    //     // printf("Reading from ROM at address: %04X  %02X\r\n", address - 0x8000, rom[address - 0x8000]);
+    //     return rom[address - 0x8000];
+    // }
+
+    // return 0x00;
 }
 
 void CPU6502_write_memory(uint16_t address, uint8_t value) {
@@ -22,23 +24,89 @@ void CPU6502_write_memory(uint16_t address, uint8_t value) {
 int main() {
     printf("Hello, World!\r\n");
 
-    // Initialize memory with a simple program
-    rom[0x7FFC] = 0x00; // Low byte of reset
-    rom[0x7FFD] = 0x80; // High byte of reset
+    // Reset vector
+    mem[0xFFFC] = 0x00;
+    mem[0xFFFD] = 0x80;
 
-    rom[0x0000] = 0xA9; // LDA Immediate
-    rom[0x0001] = 0x42; // Value to load into A
-    rom[0x0002] = 0xEA; // NOP
+    uint16_t pc = 0x8000;
+
+    /* LDA #$42 */
+    mem[pc++] = 0xA9;
+    mem[pc++] = 0x42;
+
+    /* LDA $1234 */
+    mem[pc++] = 0xAD;
+    mem[pc++] = 0x34;
+    mem[pc++] = 0x12;
+
+    /* LDA $20 */
+    mem[pc++] = 0xA5;
+    mem[pc++] = 0x20;
+
+    /* LDA $20,X */
+    mem[pc++] = 0xB5;
+    mem[pc++] = 0x20;
+
+    /* LDA $1230,X */
+    mem[pc++] = 0xBD;
+    mem[pc++] = 0x30;
+    mem[pc++] = 0x12;
+
+    /* LDA $1230,Y */
+    mem[pc++] = 0xB9;
+    mem[pc++] = 0x30;
+    mem[pc++] = 0x12;
+
+    /* LDA ($10,X) */
+    mem[pc++] = 0xA1;
+    mem[pc++] = 0x10;
+
+    /* LDA ($20),Y */
+    mem[pc++] = 0xB1;
+    mem[pc++] = 0x20;
+
+    /* NOP */
+    mem[pc++] = 0xEA;
+
+    /* Absolute */
+    mem[0x1234] = 0x11;
+
+    /* Zero Page */
+    mem[0x20] = 0x22;
+
+    /* Zero Page,X */
+    mem[0x25] = 0x33;
+
+    /* Absolute,X */
+    mem[0x1235] = 0x44;
+
+    /* Absolute,Y */
+    mem[0x1237] = 0x55;
+
+    /* ($10,X) */
+    mem[0x15] = 0x40;
+    mem[0x16] = 0x12;
+    mem[0x1240] = 0x66;
+
+    /* ($20),Y */
+    mem[0x20] = 0x50;
+    mem[0x21] = 0x12;
+    mem[0x1257] = 0x77;
 
     CPU6502_Registers registers;
     CPU6502_reset(&registers);
     
+    registers.x = 5;
+    registers.y = 7;
+
     for(int i = 0; i < 10; i++) {
         uint16_t exit = CPU6502_execute(&registers);
         if(exit) {
             printf("Invalid OPCODE encountered at %04X. Exiting.\r\n", exit - 1);
             break;
         }
+
+        printf("PC: %04X, A: %02X, X: %02X, Y: %02X, SP: %02X, Status: %02X\r\n", registers.pc, registers.a, registers.x, registers.y, registers.sp, registers.status);
     }
 
     return 0;
