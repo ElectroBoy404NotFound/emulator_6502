@@ -41,6 +41,34 @@ static inline void set_accumulator(CPU6502_Registers* registers, uint8_t val) {
         registers->status &= ~FLAG_N;
 }
 
+static inline void set_x(CPU6502_Registers* registers, uint8_t val) {
+    registers->x = val;
+
+    if(registers->x == 0)
+        registers->status |= FLAG_Z;
+    else
+        registers->status &= ~FLAG_Z;
+    
+    if(registers->x & 0b10000000)
+        registers->status |= FLAG_N;
+    else
+        registers->status &= ~FLAG_N;
+}
+
+static inline void set_y(CPU6502_Registers* registers, uint8_t val) {
+    registers->y = val;
+
+    if(registers->y == 0)
+        registers->status |= FLAG_Z;
+    else
+        registers->status &= ~FLAG_Z;
+    
+    if(registers->y & 0b10000000)
+        registers->status |= FLAG_N;
+    else
+        registers->status &= ~FLAG_N;
+}
+
 uint8_t CPU6502_execute(CPU6502_Registers* registers) {
     uint8_t opcode = CPU6502_read_memory(registers->pc);
 
@@ -103,6 +131,78 @@ uint8_t CPU6502_execute(CPU6502_Registers* registers) {
             uint16_t address = read_word_at_zp(zp);
             address += registers->y;
             set_accumulator(registers, CPU6502_read_memory(address));
+
+            break;
+        }
+
+        case 0xA2: { // LDX Imm
+            registers->pc++;
+            set_x(registers, CPU6502_read_memory(registers->pc));
+
+            break;
+        }
+        case 0xA6: { // LDX zpg
+            registers->pc++;
+            set_x(registers, CPU6502_read_memory(CPU6502_read_memory(registers->pc)));
+            
+            break;
+        }
+        case 0xB6: { // LDX zpg Y
+            registers->pc++;
+            uint8_t address = CPU6502_read_memory(registers->pc);
+            address += registers->y;
+            set_x(registers, CPU6502_read_memory(address));
+            
+            break;
+        }
+        case 0xAE: { // LDX abs
+            registers->pc++;
+            uint16_t address = read_word(registers);
+            set_x(registers, CPU6502_read_memory(address));
+
+            break;
+        }
+        case 0xBE: { // LDX abs Y
+            registers->pc++;
+            uint16_t address = read_word(registers);
+            address += registers->y;
+            set_x(registers, CPU6502_read_memory(address));
+
+            break;
+        }
+
+        case 0xA0: { // LDY Imm
+            registers->pc++;
+            set_y(registers, CPU6502_read_memory(registers->pc));
+
+            break;
+        }
+        case 0xA4: { // LDY zpg
+            registers->pc++;
+            set_y(registers, CPU6502_read_memory(CPU6502_read_memory(registers->pc)));
+            
+            break;
+        }
+        case 0xB4: { // LDY zpg X
+            registers->pc++;
+            uint8_t address = CPU6502_read_memory(registers->pc);
+            address += registers->x;
+            set_y(registers, CPU6502_read_memory(address));
+            
+            break;
+        }
+        case 0xAC: { // LDY abs
+            registers->pc++;
+            uint16_t address = read_word(registers);
+            set_y(registers, CPU6502_read_memory(address));
+
+            break;
+        }
+        case 0xBC: { // LDY abs X
+            registers->pc++;
+            uint16_t address = read_word(registers);
+            address += registers->x;
+            set_y(registers, CPU6502_read_memory(address));
 
             break;
         }
