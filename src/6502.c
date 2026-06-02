@@ -336,6 +336,23 @@ uint8_t CPU6502_execute(CPU6502_Registers* registers) {
             break;
         }
 
+        case 0xE8: { // INX
+            registers->x++;
+            break;
+        }
+        case 0xC8: { // INY
+            registers->y++;
+            break;
+        }
+        case 0xCA: { // DEX
+            registers->x--;
+            break;
+        }
+        case 0x88: { // DEY
+            registers->y--;
+            break;
+        }
+
         case 0xEA: { // NOP
             break;
         }
