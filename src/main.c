@@ -34,6 +34,14 @@ int main() {
     mem[pc++] = 0xA9;
     mem[pc++] = 0x42;
 
+    /* LDX #$05 */
+    mem[pc++] = 0xA2;
+    mem[pc++] = 0x05;
+
+    /* LDY #$07 */
+    mem[pc++] = 0xA0;
+    mem[pc++] = 0x07;
+
     /* LDA $1234 */
     mem[pc++] = 0xAD;
     mem[pc++] = 0x34;
@@ -68,6 +76,11 @@ int main() {
     /* NOP */
     mem[pc++] = 0xEA;
 
+    /* STA $1234 */
+    mem[pc++] = 0x8D;
+    mem[pc++] = 0x34;
+    mem[pc++] = 0x12;
+
     /* Absolute */
     mem[0x1234] = 0x11;
 
@@ -95,9 +108,6 @@ int main() {
 
     CPU6502_Registers registers;
     CPU6502_reset(&registers);
-    
-    registers.x = 5;
-    registers.y = 7;
 
     for(int i = 0; i < 10; i++) {
         uint16_t exit = CPU6502_execute(&registers);

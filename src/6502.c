@@ -207,8 +207,111 @@ uint8_t CPU6502_execute(CPU6502_Registers* registers) {
             break;
         }
 
+        case 0x8D: { // STA abs
+            registers->pc++;
+            uint16_t address = read_word(registers);
+            CPU6502_write_memory(address, registers->a);
+
+            break;
+        }
+        case 0x9D: { // STA abs X
+            registers->pc++;
+            uint16_t address = read_word(registers);
+            address += registers->x;
+            CPU6502_write_memory(address, registers->a);
+
+            break;
+        }
+        case 0x99: { // STA abs Y
+            registers->pc++;
+            uint16_t address = read_word(registers);
+            address += registers->y;
+            CPU6502_write_memory(address, registers->a);
+
+            break;
+        }
+        case 0x81: { // STA X ind
+            registers->pc++;
+            uint8_t zp_address = CPU6502_read_memory(registers->pc);
+            zp_address += registers->x;
+
+            uint16_t address = read_word_at_zp(zp_address);
+            CPU6502_write_memory(address, registers->a);
+
+            break;
+        }
+        case 0x91: { // STA ind Y
+            registers->pc++;
+            uint8_t zp_address = CPU6502_read_memory(registers->pc);
+            uint16_t address = read_word_at_zp(zp_address);
+            address += registers->y;
+            CPU6502_write_memory(address, registers->a);
+
+            break;
+        }
+        case 0x85: { // STA zpg
+            registers->pc++;
+            uint8_t zp_address = CPU6502_read_memory(registers->pc);
+            CPU6502_write_memory(zp_address, registers->a);
+
+            break;
+        }
+        case 0x95: { // STA zpg X
+            registers->pc++;
+            uint8_t zp_address = CPU6502_read_memory(registers->pc);
+            zp_address += registers->x;
+            CPU6502_write_memory(zp_address, registers->a);
+
+            break;
+        }
+
+        case 0x8E: { // STX abs
+            registers->pc++;
+            uint16_t address = read_word(registers);
+            CPU6502_write_memory(address, registers->x);
+
+            break;
+        }
+        case 0x86: { // STX zpg
+            registers->pc++;
+            uint8_t zp_address = CPU6502_read_memory(registers->pc);
+            CPU6502_write_memory(zp_address, registers->x);
+
+            break;
+        }
+        case 0x96: { // STX zpg Y
+            registers->pc++;
+            uint8_t zp_address = CPU6502_read_memory(registers->pc);
+            zp_address += registers->y;
+            CPU6502_write_memory(zp_address, registers->x);
+
+            break;
+        }
+        
+        case 0x8C: { // STY abs
+            registers->pc++;
+            uint16_t address = read_word(registers);
+            CPU6502_write_memory(address, registers->y);
+
+            break;
+        }
+        case 0x84: { // STY zpg
+            registers->pc++;
+            uint8_t zp_address = CPU6502_read_memory(registers->pc);
+            CPU6502_write_memory(zp_address, registers->y);
+
+            break;
+        }
+        case 0x94: { // STY zpg X
+            registers->pc++;
+            uint8_t zp_address = CPU6502_read_memory(registers->pc);
+            zp_address += registers->x;
+            CPU6502_write_memory(zp_address, registers->y);
+            
+            break;
+        }
+
         case 0xEA: { // NOP
-            printf("NOP executed\r\n");
             break;
         }
         default:
