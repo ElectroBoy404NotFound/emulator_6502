@@ -311,6 +311,31 @@ uint8_t CPU6502_execute(CPU6502_Registers* registers) {
             break;
         }
 
+        case 0xAA: { // TAX
+            set_x(registers, registers->a);
+            break;
+        }
+        case 0xBA: { // TSX
+            set_x(registers, registers->sp);
+            break;
+        }
+        case 0x8A: { // TXA
+            set_accumulator(registers, registers->x);
+            break;
+        }
+        case 0x9A: { // TXS
+            registers->sp = registers->x;
+            break;
+        }
+        case 0xA8: { // TAY
+            set_y(registers, registers->a);
+            break;
+        }
+        case 0x98: { // TYA
+            set_accumulator(registers, registers->y);
+            break;
+        }
+
         case 0xEA: { // NOP
             break;
         }
