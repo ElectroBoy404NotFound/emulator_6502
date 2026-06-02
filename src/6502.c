@@ -20,6 +20,13 @@ static uint16_t read_word(CPU6502_Registers* r) {
     return low | (high << 8);
 }
 
+static uint16_t read_word_at(uint16_t address) {
+    uint16_t low = CPU6502_read_memory(address);
+    uint16_t high = CPU6502_read_memory(address + 1);
+
+    return (high << 8) | low;
+}
+
 static uint16_t read_word_at_zp(uint8_t at) {
     uint16_t low = CPU6502_read_memory(at);
     uint16_t high = CPU6502_read_memory(at + 1);
@@ -69,7 +76,7 @@ static inline void set_y(CPU6502_Registers* registers, uint8_t val) {
         registers->status &= ~FLAG_N;
 }
 
-uint8_t CPU6502_execute(CPU6502_Registers* registers) {
+uint16_t CPU6502_execute(CPU6502_Registers* registers) {
     uint8_t opcode = CPU6502_read_memory(registers->pc);
 
     switch (opcode) {
@@ -350,6 +357,23 @@ uint8_t CPU6502_execute(CPU6502_Registers* registers) {
         }
         case 0x88: { // DEY
             registers->y--;
+            break;
+        }
+
+        case 0x4C: {
+            registers->pc++;
+            uint16_t jump_address = read_word(registers);
+            registers->pc = jump_address;
+            registers->pc--;
+
+            break;
+        }
+        case 0x6C: { // JMP ind
+            registers->pc++;
+            uint16_t address = read_word(registers);
+            registers->pc = read_word_at(address);
+            registers->pc--;
+
             break;
         }
 

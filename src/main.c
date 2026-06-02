@@ -81,6 +81,30 @@ int main() {
     mem[pc++] = 0x34;
     mem[pc++] = 0x12;
 
+    /* JMP $F100 */
+    mem[pc++] = 0x4C;
+    mem[pc++] = 0x00;
+    mem[pc++] = 0xF1;
+
+    pc = 0xF100;
+    /* LDA #$67 */
+    mem[pc++] = 0xA9;
+    mem[pc++] = 0x67;
+
+    /* JMP ($F200) */
+    mem[pc++] = 0x6C;
+    mem[pc++] = 0x00;
+    mem[pc++] = 0xF2;
+
+    pc = 0xE000;
+    /* LDA #$AA */
+    mem[pc++] = 0xA9;
+    mem[pc++] = 0xAA;
+
+    /* 0xF200: 0x00E0 */
+    mem[0xF200] = 0x00;
+    mem[0xF201] = 0xE0;
+
     /* Absolute */
     mem[0x1234] = 0x11;
 
@@ -109,7 +133,7 @@ int main() {
     CPU6502_Registers registers;
     CPU6502_reset(&registers);
 
-    for(int i = 0; i < 10; i++) {
+    for(int i = 0; i < 20; i++) {
         uint16_t exit = CPU6502_execute(&registers);
         if(exit) {
             printf("Invalid OPCODE encountered at %04X. Exiting.\r\n", exit - 1);

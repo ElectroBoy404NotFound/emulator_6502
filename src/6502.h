@@ -26,4 +26,4 @@ extern void CPU6502_write_memory(uint16_t address, uint8_t value);
 extern uint8_t CPU6502_read_memory(uint16_t address);
 
 void CPU6502_reset(CPU6502_Registers* registers);
-uint8_t CPU6502_execute(CPU6502_Registers* registers);
+uint16_t CPU6502_execute(CPU6502_Registers* registers);
