@@ -344,19 +344,19 @@ uint16_t CPU6502_execute(CPU6502_Registers* registers) {
         }
 
         case 0xE8: { // INX
-            registers->x++;
+            set_x(registers, registers->x + 1);
             break;
         }
         case 0xC8: { // INY
-            registers->y++;
+            set_y(registers, registers->y + 1);
             break;
         }
         case 0xCA: { // DEX
-            registers->x--;
+            set_x(registers, registers->x - 1);
             break;
         }
         case 0x88: { // DEY
-            registers->y--;
+            set_y(registers, registers->y - 1);
             break;
         }
 
@@ -373,6 +373,71 @@ uint16_t CPU6502_execute(CPU6502_Registers* registers) {
             uint16_t address = read_word(registers);
             registers->pc = read_word_at(address);
             registers->pc--;
+
+            break;
+        }
+
+        case 0x29: { // AND #
+            registers->pc++;
+            uint8_t value = CPU6502_read_memory(registers->pc);
+            set_accumulator(registers, registers->a & value);
+
+            break;
+        }
+        case 0x39: { // AND abs Y
+            registers->pc++;
+            uint16_t address = read_word(registers);
+            address += registers->y;
+            set_accumulator(registers, registers->a & CPU6502_read_memory(address));
+
+            break;
+        }
+        case 0x2D: { // AND abs
+            registers->pc++;
+            uint16_t address = read_word(registers);
+            set_accumulator(registers, registers->a & CPU6502_read_memory(address));
+
+            break;
+        }
+        case 0x3D: { // AND abs X
+            registers->pc++;
+            uint16_t address = read_word(registers);
+            address += registers->x;
+            set_accumulator(registers, registers->a & CPU6502_read_memory(address));
+
+            break;
+        }
+        case 0x25: { // AND zpg
+            registers->pc++;
+            uint8_t zp_address = CPU6502_read_memory(registers->pc);
+            set_accumulator(registers, registers->a & CPU6502_read_memory(zp_address));
+
+            break;
+        }
+        case 0x35: { // AND zpg X
+            registers->pc++;
+            uint8_t zp_address = CPU6502_read_memory(registers->pc);
+            zp_address += registers->x;
+            set_accumulator(registers, registers->a & CPU6502_read_memory(zp_address));
+
+            break;
+        }
+        case 0x21: { // AND X ind
+            registers->pc++;
+            uint8_t zp_address = CPU6502_read_memory(registers->pc);
+            zp_address += registers->x;
+
+            uint16_t address = read_word_at_zp(zp_address);
+            set_accumulator(registers, registers->a & CPU6502_read_memory(address));
+
+            break;
+        }
+        case 0x31: { // AND ind Y
+            registers->pc++;
+            uint8_t zp_address = CPU6502_read_memory(registers->pc);
+            uint16_t address = read_word_at_zp(zp_address);
+            address += registers->y;
+            set_accumulator(registers, registers->a & CPU6502_read_memory(address));
 
             break;
         }
