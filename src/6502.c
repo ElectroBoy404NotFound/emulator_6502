@@ -451,7 +451,7 @@ uint16_t CPU6502_execute(CPU6502_Registers* registers) {
         }
         case 0x19: { // ORA abs Y
             registers->pc++;
-            uint16_t address = read_word(registers->pc);
+            uint16_t address = read_word(registers);
             address += registers->y;
             set_accumulator(registers, registers->a | CPU6502_read_memory(address));
 
@@ -459,14 +459,14 @@ uint16_t CPU6502_execute(CPU6502_Registers* registers) {
         }
         case 0x0D: { // ORA abs
             registers->pc++;
-            uint16_t address = read_word(registers->pc);
+            uint16_t address = read_word(registers);
             set_accumulator(registers, registers->a | CPU6502_read_memory(address));
 
             break;
         }
         case 0x1D: { // ORA abs X
             registers->pc++;
-            uint16_t address = read_word(registers->pc);
+            uint16_t address = read_word(registers);
             address += registers->x;
             set_accumulator(registers, registers->a | CPU6502_read_memory(address));
 
@@ -502,6 +502,69 @@ uint16_t CPU6502_execute(CPU6502_Registers* registers) {
             uint16_t address = read_word_at_zp(zp_address);
             address += registers->x;
             set_accumulator(registers, registers->a | CPU6502_read_memory(address));
+
+            break;
+        }
+
+        case 0x49: { // EOR #
+            registers->pc++;
+            set_accumulator(registers, registers->a ^ CPU6502_read_memory(registers->pc));
+
+            break;
+        }
+        case 0x4D: { // EOR abs
+            registers->pc++;
+            uint16_t address = read_word(registers);
+            set_accumulator(registers, registers->a ^ CPU6502_read_memory(address));
+
+            break;
+        }
+        case 0x5D: { // EOR abs X
+            registers->pc++;
+            uint16_t address = read_word(registers);
+            address += registers->x;
+            set_accumulator(registers, registers->a ^ CPU6502_read_memory(address));
+
+            break;
+        }
+        case 0x59: { // EOR abs Y
+            registers->pc++;
+            uint16_t address = read_word(registers);
+            address += registers->y;
+            set_accumulator(registers, registers->a ^ CPU6502_read_memory(address));
+
+            break;
+        }
+        case 0x45: { // EOR zpg
+            registers->pc++;
+            uint8_t zp_address = CPU6502_read_memory(registers);
+            set_accumulator(registers, registers->a ^ CPU6502_read_memory(address));
+
+            break;
+        }
+        case 0x55: { // EOR zpg X
+            registers->pc++;
+            uint8_t zp_address = CPU6502_read_memory(registers);
+            zp_address += registers->x;
+            set_accumulator(registers, registers->a ^ CPU6502_read_memory(address));
+
+            break;
+        }
+        case 0x41: { // EOR X ind
+            registers->pc++;
+            uint8_t zp_address = CPU6502_read_memory(registers);
+            zp_address += registers->x;
+            uint16_t address = read_word_at_zp(zp_address);
+            set_accumulator(registers, registers->a ^ CPU6502_read_memory(address));
+
+            break;
+        }
+        case 0x51: { // EOR ind Y
+            registers->pc++;
+            uint8_t zp_address = CPU6502_read_memory(registers);
+            uint16_t address = read_word_at_zp(zp_address);
+            address += registers->y;
+            set_accumulator(registers, registers->a ^ CPU6502_read_memory(address));
 
             break;
         }
