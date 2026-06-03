@@ -442,6 +442,70 @@ uint16_t CPU6502_execute(CPU6502_Registers* registers) {
             break;
         }
 
+        case 0x09: { // ORA #
+            registers->pc++;
+            uint8_t value = CPU6502_read_memory(registers->pc);
+            set_accumulator(registers, registers->a | value);
+
+            break;
+        }
+        case 0x19: { // ORA abs Y
+            registers->pc++;
+            uint16_t address = read_word(registers->pc);
+            address += registers->y;
+            set_accumulator(registers, registers->a | CPU6502_read_memory(address));
+
+            break;
+        }
+        case 0x0D: { // ORA abs
+            registers->pc++;
+            uint16_t address = read_word(registers->pc);
+            set_accumulator(registers, registers->a | CPU6502_read_memory(address));
+
+            break;
+        }
+        case 0x1D: { // ORA abs X
+            registers->pc++;
+            uint16_t address = read_word(registers->pc);
+            address += registers->x;
+            set_accumulator(registers, registers->a | CPU6502_read_memory(address));
+
+            break;
+        }
+        case 0x05: { // ORA zpg
+            registers->pc++;
+            uint8_t address = CPU6502_read_memory(registers->pc);
+            set_accumulator(registers, registers->a | CPU6502_read_memory(address));
+
+            break;
+        }
+        case 0x15: { // ORA zpg X
+            registers->pc++;
+            uint8_t address = CPU6502_read_memory(registers->pc);
+            address += registers->x;
+            set_accumulator(registers, registers->a | CPU6502_read_memory(address));
+
+            break;
+        }
+        case 0x01: { // ORA X ind
+            registers->pc++;
+            uint8_t zp_address = CPU6502_read_memory(registers->pc);
+            zp_address += registers->x;
+            uint16_t address = read_word_at_zp(zp_address);
+            set_accumulator(registers, registers->a | CPU6502_read_memory(address));
+
+            break;
+        }
+        case 0x11: { // ORA ind Y
+            registers->pc++;
+            uint8_t zp_address = CPU6502_read_memory(registers->pc);
+            uint16_t address = read_word_at_zp(zp_address);
+            address += registers->x;
+            set_accumulator(registers, registers->a | CPU6502_read_memory(address));
+
+            break;
+        }
+
         case 0xEA: { // NOP
             break;
         }
