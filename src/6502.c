@@ -29,7 +29,7 @@ static uint16_t read_word_at(uint16_t address) {
 
 static uint16_t read_word_at_zp(uint8_t at) {
     uint16_t low = CPU6502_read_memory(at);
-    uint16_t high = CPU6502_read_memory(at + 1);
+    uint16_t high = CPU6502_read_memory((uint8_t) (at + 1));
 
     return low | (high << 8);
 }
@@ -71,6 +71,25 @@ static inline void set_y(CPU6502_Registers* registers, uint8_t val) {
         registers->status &= ~FLAG_Z;
     
     if(registers->y & 0b10000000)
+        registers->status |= FLAG_N;
+    else
+        registers->status &= ~FLAG_N;
+}
+
+static inline void compare_reg(CPU6502_Registers* registers, uint8_t* reg, uint8_t cmp_val) {
+    uint8_t result = *reg - cmp_val;
+
+    if(*reg >= cmp_val)
+        registers->status |= FLAG_C;
+    else
+        registers->status &= ~FLAG_C;
+
+    if(result == 0)
+        registers->status |= FLAG_Z;
+    else
+        registers->status &= ~FLAG_Z;
+
+    if(result & 0x80)
         registers->status |= FLAG_N;
     else
         registers->status &= ~FLAG_N;
@@ -500,7 +519,7 @@ uint16_t CPU6502_execute(CPU6502_Registers* registers) {
             registers->pc++;
             uint8_t zp_address = CPU6502_read_memory(registers->pc);
             uint16_t address = read_word_at_zp(zp_address);
-            address += registers->x;
+            address += registers->y;
             set_accumulator(registers, registers->a | CPU6502_read_memory(address));
 
             break;
@@ -537,22 +556,22 @@ uint16_t CPU6502_execute(CPU6502_Registers* registers) {
         }
         case 0x45: { // EOR zpg
             registers->pc++;
-            uint8_t zp_address = CPU6502_read_memory(registers);
-            set_accumulator(registers, registers->a ^ CPU6502_read_memory(address));
+            uint8_t zp_address = CPU6502_read_memory(registers->pc);
+            set_accumulator(registers, registers->a ^ CPU6502_read_memory(zp_address));
 
             break;
         }
         case 0x55: { // EOR zpg X
             registers->pc++;
-            uint8_t zp_address = CPU6502_read_memory(registers);
+            uint8_t zp_address = CPU6502_read_memory(registers->pc);
             zp_address += registers->x;
-            set_accumulator(registers, registers->a ^ CPU6502_read_memory(address));
+            set_accumulator(registers, registers->a ^ CPU6502_read_memory(zp_address));
 
             break;
         }
         case 0x41: { // EOR X ind
             registers->pc++;
-            uint8_t zp_address = CPU6502_read_memory(registers);
+            uint8_t zp_address = CPU6502_read_memory(registers->pc);
             zp_address += registers->x;
             uint16_t address = read_word_at_zp(zp_address);
             set_accumulator(registers, registers->a ^ CPU6502_read_memory(address));
@@ -561,10 +580,129 @@ uint16_t CPU6502_execute(CPU6502_Registers* registers) {
         }
         case 0x51: { // EOR ind Y
             registers->pc++;
-            uint8_t zp_address = CPU6502_read_memory(registers);
+            uint8_t zp_address = CPU6502_read_memory(registers->pc);
             uint16_t address = read_word_at_zp(zp_address);
             address += registers->y;
             set_accumulator(registers, registers->a ^ CPU6502_read_memory(address));
+
+            break;
+        }
+
+        case 0xC9: { // CMP #
+            registers->pc++;
+            uint8_t value = CPU6502_read_memory(registers->pc);
+            compare_reg(registers, &registers->a, value);
+
+            break;
+        }
+        case 0xD9: { // CMP abs Y
+            registers->pc++;
+            uint16_t address = read_word(registers);
+            address += registers->y;
+            uint8_t value = CPU6502_read_memory(address);
+            compare_reg(registers, &registers->a, value);
+
+            break;
+        }
+        case 0xDD: { // CMP abs X
+            registers->pc++;
+            uint16_t address = read_word(registers);
+            address += registers->x;
+            uint8_t value = CPU6502_read_memory(address);
+            compare_reg(registers, &registers->a, value);
+
+            break;
+        }
+        case 0xCD: { // CMP abs
+            registers->pc++;
+            uint16_t address = read_word(registers);
+            uint8_t value = CPU6502_read_memory(address);
+            compare_reg(registers, &registers->a, value);
+
+            break;
+        }
+        case 0xC5: { // CMP zpg
+            registers->pc++;
+            uint8_t zp_address = CPU6502_read_memory(registers->pc);
+            uint8_t value = CPU6502_read_memory(zp_address);
+            compare_reg(registers, &registers->a, value);
+
+            break;
+        }
+        case 0xD5: { // CMP zpg X
+            registers->pc++;
+            uint8_t zp_address = CPU6502_read_memory(registers->pc);
+            zp_address += registers->x;
+            uint8_t value = CPU6502_read_memory(zp_address);
+            compare_reg(registers, &registers->a, value);
+
+            break;
+        }
+        case 0xC1: { // CMP X ind
+            registers->pc++;
+            uint8_t zp_address = CPU6502_read_memory(registers->pc);
+            zp_address += registers->x;
+            uint16_t address = read_word_at_zp(zp_address);
+            uint8_t value = CPU6502_read_memory(address);
+            compare_reg(registers, &registers->a, value);
+
+            break;
+        }
+        case 0xD1: { // CMP ind Y
+            registers->pc++;
+            uint8_t zp_address = CPU6502_read_memory(registers->pc);
+            uint16_t address = read_word_at_zp(zp_address);
+            address += registers->y;
+            uint8_t value = CPU6502_read_memory(address);
+            compare_reg(registers, &registers->a, value);
+
+            break;
+        }
+
+        case 0xC0: { // CPY #
+            registers->pc++;
+            uint8_t value = CPU6502_read_memory(registers->pc);
+            compare_reg(registers, &registers->y, value);
+
+            break;
+        }
+        case 0xC4: { // CPY zpg
+            registers->pc++;
+            uint8_t address = CPU6502_read_memory(registers->pc);
+            uint8_t value = CPU6502_read_memory(address);
+            compare_reg(registers, &registers->y, value);
+
+            break;
+        }
+        case 0xCC: { // CPY abs
+            registers->pc++;
+            uint16_t address = read_word(registers);
+            uint8_t value = CPU6502_read_memory(address);
+            compare_reg(registers, &registers->y, value);
+
+            break;
+        }
+
+        case 0xE0: { // CPX #
+            registers->pc++;
+            uint8_t value = CPU6502_read_memory(registers->pc);
+            compare_reg(registers, &registers->x, value);
+
+            break;
+        }
+        case 0xE4: { // CPX zpg
+            registers->pc++;
+            uint8_t address = CPU6502_read_memory(registers->pc);
+            uint8_t value = CPU6502_read_memory(address);
+            compare_reg(registers, &registers->x, value);
+
+            break;
+        }
+        case 0xEC: { // CPX abs
+            registers->pc++;
+            uint16_t address = read_word(registers);
+            uint8_t value = CPU6502_read_memory(address);
+            compare_reg(registers, &registers->x, value);
 
             break;
         }
