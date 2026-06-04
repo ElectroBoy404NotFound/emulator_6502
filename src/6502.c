@@ -93,6 +93,8 @@ static inline void compare_reg(CPU6502_Registers* registers, uint8_t* reg, uint8
         registers->status |= FLAG_N;
     else
         registers->status &= ~FLAG_N;
+
+    printf("CMP EXPECT %02X HAVE %02X\r\n", cmp_val, *reg);
 }
 
 uint16_t CPU6502_execute(CPU6502_Registers* registers) {
@@ -370,6 +372,13 @@ uint16_t CPU6502_execute(CPU6502_Registers* registers) {
             set_y(registers, registers->y + 1);
             break;
         }
+        case 0xFE: { // INC abs X
+            registers->pc++;
+            uint16_t address = read_word(registers);
+            CPU6502_write_memory(address, CPU6502_read_memory(address) + 1);
+
+            break;
+        }
         case 0xCA: { // DEX
             set_x(registers, registers->x - 1);
             break;
@@ -378,8 +387,15 @@ uint16_t CPU6502_execute(CPU6502_Registers* registers) {
             set_y(registers, registers->y - 1);
             break;
         }
+        case 0xDE: { // DEC abs X
+            registers->pc++;
+            uint16_t address = read_word(registers);
+            CPU6502_write_memory(address, CPU6502_read_memory(address) - 1);
 
-        case 0x4C: {
+            break;
+        }
+
+        case 0x4C: { // JMP abs
             registers->pc++;
             uint16_t jump_address = read_word(registers);
             registers->pc = jump_address;
@@ -706,10 +722,546 @@ uint16_t CPU6502_execute(CPU6502_Registers* registers) {
 
             break;
         }
+        
+        case 0xD0: { // BNE rel
+            uint16_t origin = registers->pc;
+            registers->pc++;
+            int8_t rel_address = (int8_t) CPU6502_read_memory(registers->pc);
+            if(!(registers->status & FLAG_Z)) {
+                registers->pc = origin + rel_address;
+                registers->pc++;
+            }
+
+            break;
+        }
+        case 0xF0: { // BEQ rel
+            uint16_t origin = registers->pc;
+            registers->pc++;
+            int8_t rel_address = (int8_t) CPU6502_read_memory(registers->pc);
+            if(registers->status & FLAG_Z) {
+                registers->pc = origin + rel_address;
+                registers->pc++;
+            }
+
+            break;
+        }
+        case 0x10: { // BPL rel
+            uint16_t origin = registers->pc;
+            registers->pc++;
+            int8_t rel_address = (int8_t) CPU6502_read_memory(registers->pc);
+            if(!(registers->status & FLAG_N)) {
+                registers->pc = origin + rel_address;
+                registers->pc++;
+            }
+
+            break;
+        }
+        case 0x90: { // BCC rel
+            uint16_t origin = registers->pc;
+            registers->pc++;
+            int8_t rel_address = (int8_t) CPU6502_read_memory(registers->pc);
+            if(!(registers->status & FLAG_C)) {
+                registers->pc = origin + rel_address;
+                registers->pc++;
+            }
+
+            break;
+        }
+        case 0x30: { // BMI rel
+            uint16_t origin = registers->pc;
+            registers->pc++;
+            int8_t rel_address = (int8_t) CPU6502_read_memory(registers->pc);
+            if((registers->status & FLAG_N)) {
+                registers->pc = origin + rel_address;
+                registers->pc++;
+            }
+
+            break;
+        }
+        case 0xB0: { // BCS rel
+            uint16_t origin = registers->pc;
+            registers->pc++;
+            int8_t rel_address = (int8_t) CPU6502_read_memory(registers->pc);
+            if((registers->status & FLAG_C)) {
+                registers->pc = origin + rel_address;
+                registers->pc++;
+            }
+
+            break;
+        }
+        case 0x50: { // BVC rel
+            uint16_t origin = registers->pc;
+            registers->pc++;
+            int8_t rel_address = (int8_t) CPU6502_read_memory(registers->pc);
+            if(!(registers->status & FLAG_V)) {
+                registers->pc = origin + rel_address;
+                registers->pc++;
+            }
+
+            break;
+        }
+        case 0x70: { // BVS rel
+            uint16_t origin = registers->pc;
+            registers->pc++;
+            int8_t rel_address = (int8_t) CPU6502_read_memory(registers->pc);
+            if((registers->status & FLAG_V)) {
+                registers->pc = origin + rel_address;
+                registers->pc++;
+            }
+
+            break;
+        }
+
+        case 0x48: { // PHA impl
+            uint16_t stack_address = 0x0100 + registers->sp;
+            CPU6502_write_memory(stack_address, registers->a);
+            registers->sp--;
+
+            break;
+        }
+        case 0x68: { // PLA impl
+            registers->sp++;
+            uint16_t stack_address = 0x0100 + registers->sp;
+
+            set_accumulator(registers, CPU6502_read_memory(stack_address));
+
+            break;
+        }
+        case 0x08: { // PHP impl
+            uint16_t stack_address = 0x0100 + registers->sp;
+
+            CPU6502_write_memory(stack_address, (registers->status) | (FLAG_B | FLAG_U));
+
+            registers->sp--;
+
+            break;
+        }
+        case 0x28: { // PLP impl
+            registers->sp++;
+            uint16_t stack_address = 0x0100 + registers->sp;
+
+            registers->status = CPU6502_read_memory(stack_address) & ~(FLAG_B | FLAG_U);
+
+            break;
+        }
+        
+        case 0x20: { // JSR abs
+            uint16_t stack_address = 0x0100 + registers->sp;
+            uint16_t return_addr = registers->pc + 2;
+            CPU6502_write_memory(stack_address, (uint8_t) (return_addr >> 8) & 0xFF);
+            registers->sp--;
+            CPU6502_write_memory(stack_address - 1, (uint8_t) return_addr & 0xff);
+            registers->sp--;
+
+            registers->pc++;
+            uint16_t jmp_address = read_word(registers);
+            registers->pc = jmp_address;
+            registers->pc--;
+
+            printf("JSR %02x\r\n", jmp_address);
+
+            break;
+        }
+        case 0x60: { // RTS impl
+            registers->sp++;
+            uint16_t stack_address = 0x0100 + registers->sp;
+            
+            uint8_t low_addr = CPU6502_read_memory(stack_address);
+            registers->sp++;
+            uint8_t high_addr = CPU6502_read_memory(stack_address + 1);
+
+            uint16_t jmp_address = (high_addr << 8) | low_addr;
+            registers->pc = jmp_address;
+            printf("RTS %02x\r\n", jmp_address);
+
+            break;
+        }
+
+        case 0xD8: { // CLD impl
+            registers->status &= ~FLAG_D;
+            
+            break;
+        }
+        case 0x18: { // CLC impl
+            registers->status &= ~FLAG_C;
+            
+            break;
+        }
+        case 0x38: { // SEC impl
+            registers->status |= FLAG_C;
+            
+            break;
+        }
+        case 0x58: { // CLI impl
+            registers->status &= ~FLAG_I;
+            
+            break;
+        }
+        case 0x78: { // SEI impl
+            registers->status |= FLAG_I;
+            
+            break;
+        }
+        case 0xF8: { // SED impl
+            registers->status |= FLAG_D;
+            
+            break;
+        }
+        case 0xB8: { // CLV impl
+            registers->status &= ~FLAG_V;
+            
+            break;
+        }
+
+        case 0x69: { // ADC #
+            registers->pc++;
+            uint8_t value = CPU6502_read_memory(registers->pc);
+            uint16_t sum = registers->a + value + ((registers->status & FLAG_C) ? 1 : 0);
+            if(sum > 0xFF)
+                registers->status |= FLAG_C;
+            else
+                registers->status &= ~FLAG_C;
+
+            uint8_t result = sum & 0xFF;
+
+            if(((registers->a ^ result) & (value ^ result) & 0x80))
+                registers->status |= FLAG_V;
+            else
+                registers->status &= ~FLAG_V;
+
+            set_accumulator(registers, result);
+
+            break;
+        }
+
+        case 0x24: { // BIT zpg
+            registers->pc++;
+            uint8_t zp_address = CPU6502_read_memory(registers->pc);
+            uint8_t value = CPU6502_read_memory(zp_address);
+            uint8_t result = registers->a & value;
+
+            if (result == 0)
+                registers->status |= FLAG_Z;
+            else
+                registers->status &= ~FLAG_Z;
+
+            if (value & 0x80)
+                registers->status |= FLAG_N;
+            else
+                registers->status &= ~FLAG_N;
+            
+            if (value & 0x40)
+                registers->status |= FLAG_V;
+            else
+                registers->status &= ~FLAG_V;
+            
+            break;
+        }
+        case 0x2C: { // BIT abs
+            registers->pc++;
+            uint16_t address = read_word(registers);
+            uint8_t value = CPU6502_read_memory(address);
+            uint8_t result = registers->a & value;
+
+            if (result == 0)
+                registers->status |= FLAG_Z;
+            else
+                registers->status &= ~FLAG_Z;
+
+            if (value & 0x80)
+                registers->status |= FLAG_N;
+            else
+                registers->status &= ~FLAG_N;
+            
+            if (value & 0x40)
+                registers->status |= FLAG_V;
+            else
+                registers->status &= ~FLAG_V;
+            
+            break;
+        }
 
         case 0xEA: { // NOP
             break;
         }
+
+        case 0x00: { // BRK impl
+            registers->pc++;
+            registers->pc++;
+
+            CPU6502_write_memory(0x0100 | registers->sp, (registers->pc >> 8) & 0xFF);
+            printf("BRK Wrote %02X as PC HI at %04X\r\n", (registers->pc >> 8) & 0xFF, 0x0100 | registers->sp);
+            registers->sp--;
+            CPU6502_write_memory(0x0100 | registers->sp, registers->pc & 0xFF);
+            printf("BRK Wrote %02X as PC LO at %04X\r\n", registers->pc & 0xFF, 0x0100 | registers->sp);
+            registers->sp--;
+
+            CPU6502_write_memory(0x0100 | registers->sp, (registers->status) | (FLAG_B | FLAG_U));
+            registers->sp--;
+
+            // registers->status = FLAG_I;
+            registers->status |= FLAG_B | FLAG_U | FLAG_I;
+
+            uint16_t lo = CPU6502_read_memory(0xFFFE);
+            uint16_t hi = CPU6502_read_memory(0xFFFF);
+            registers->pc = lo | (hi << 8);
+            registers->pc--;
+            break;
+        }
+        case 0x40: { // RTI impl
+            registers->sp++;
+            uint8_t status_reg = CPU6502_read_memory(0x0100 | registers->sp);
+            registers->sp++;
+            uint8_t low_addr = CPU6502_read_memory(0x0100 | registers->sp);
+            registers->sp++;
+            uint8_t high_addr = CPU6502_read_memory(0x0100 | registers->sp);
+
+            registers->status = status_reg & ~(FLAG_B | FLAG_U);
+
+            uint16_t jmp_address = (high_addr << 8) | low_addr;
+            registers->pc = jmp_address;
+            registers->pc--;
+
+            break;
+        }
+
+        case 0x0A: { // ASL A
+            uint8_t carry = (registers->a & 0x80) ? 1 : 0;
+            uint8_t result = registers->a << 1;
+
+            set_accumulator(registers, result);
+
+            if (carry)
+                registers->status |= FLAG_C;
+            else
+                registers->status &= ~FLAG_C;
+
+            break;
+        }
+        case 0x4A: { // LSR A
+            uint8_t carry = (registers->a & 0x01) ? 1 : 0;
+            uint8_t result = registers->a >> 1;
+
+            set_accumulator(registers, result);
+
+            if (carry)
+                registers->status |= FLAG_C;
+            else
+                registers->status &= ~FLAG_C;
+
+            break;
+        }
+        case 0x2A: { // ROL A
+            uint8_t org_carry = (registers->status & FLAG_C) ? 1 : 0;
+            uint8_t carry = (registers->a & 0x80) ? 1 : 0;
+            uint8_t result = registers->a << 1 | org_carry;
+
+            set_accumulator(registers, result);
+
+            if (carry)
+                registers->status |= FLAG_C;
+            else
+                registers->status &= ~FLAG_C;
+
+            break;
+        }
+        case 0x6A: { // ROR A
+            uint8_t org_carry = (registers->status & FLAG_C) ? 1 : 0;
+            uint8_t carry = (registers->a & 0x01) ? 1 : 0;
+            uint8_t result = (org_carry << 7) | registers->a >> 1;
+
+            set_accumulator(registers, result);
+
+            if (carry)
+                registers->status |= FLAG_C;
+            else
+                registers->status &= ~FLAG_C;
+
+            break;
+        }
+        case 0x06: { // ASL zpg
+            registers->pc++;
+            uint8_t zp_address = CPU6502_read_memory(registers->pc);
+            uint8_t value = CPU6502_read_memory(zp_address);
+            uint8_t result = value << 1;
+            if(value & 0x80)
+                registers->status |= FLAG_C;
+            else
+                registers->status &= ~FLAG_C;
+
+            if (result == 0)
+                registers->status |= FLAG_Z;
+            else
+                registers->status &= ~FLAG_Z;
+
+            if (result & 0x80)
+                registers->status |= FLAG_N;
+            else
+                registers->status &= ~FLAG_N;
+
+            CPU6502_write_memory(zp_address, result);
+            break;
+        }
+        case 0x46: { // LSR zpg
+            registers->pc++;
+            uint8_t zp_address = CPU6502_read_memory(registers->pc);
+            uint8_t value = CPU6502_read_memory(zp_address);
+            uint8_t result = value >> 1;
+            if(value & 0x01)
+                registers->status |= FLAG_C;
+            else
+                registers->status &= ~FLAG_C;
+
+            if (result == 0)
+                registers->status |= FLAG_Z;
+            else
+                registers->status &= ~FLAG_Z;
+
+            registers->status &= ~FLAG_N;
+
+            CPU6502_write_memory(zp_address, result);
+            break;
+        }
+        case 0x26: { // ROL zpg
+            registers->pc++;
+            uint8_t org_carry = (registers->status & FLAG_C) ? 1 : 0;
+            uint8_t zp_address = CPU6502_read_memory(registers->pc);
+            uint8_t value = CPU6502_read_memory(zp_address);
+            uint8_t result = value << 1 | org_carry;
+            if(value & 0x80)
+                registers->status |= FLAG_C;
+            else
+                registers->status &= ~FLAG_C;
+
+            if (result == 0)
+                registers->status |= FLAG_Z;
+            else
+                registers->status &= ~FLAG_Z;
+
+            if (result & 0x80)
+                registers->status |= FLAG_N;
+            else
+                registers->status &= ~FLAG_N;
+
+            CPU6502_write_memory(zp_address, result);
+            break;
+        }
+        case 0x66: { // ROR zpg
+            registers->pc++;
+            uint8_t org_carry = (registers->status & FLAG_C) ? 1 : 0;
+            uint8_t zp_address = CPU6502_read_memory(registers->pc);
+            uint8_t value = CPU6502_read_memory(zp_address);
+            uint8_t result = (org_carry << 7) | value >> 1;
+            if(value & 0x01)
+                registers->status |= FLAG_C;
+            else
+                registers->status &= ~FLAG_C;
+
+            if (result == 0)
+                registers->status |= FLAG_Z;
+            else
+                registers->status &= ~FLAG_Z;
+
+            if (result & 0x80)
+                registers->status |= FLAG_N;
+            else
+                registers->status &= ~FLAG_N;
+
+            CPU6502_write_memory(zp_address, result);
+            break;
+        }
+        case 0x0E: { // ASL abs
+            registers->pc++;
+            uint16_t address = read_word(registers);
+            uint8_t value = CPU6502_read_memory(address);
+            uint8_t result = value << 1;
+            if(value & 0x80)
+                registers->status |= FLAG_C;
+            else
+                registers->status &= ~FLAG_C;
+
+            if (result == 0)
+                registers->status |= FLAG_Z;
+            else
+                registers->status &= ~FLAG_Z;
+
+            if (result & 0x80)
+                registers->status |= FLAG_N;
+            else
+                registers->status &= ~FLAG_N;
+
+            CPU6502_write_memory(address, result);
+            break;
+        }
+        case 0x4E: { // LSR abs
+            registers->pc++;
+            uint16_t address = read_word(registers);
+            uint8_t value = CPU6502_read_memory(address);
+            uint8_t result = value >> 1;
+            if(value & 0x01)
+                registers->status |= FLAG_C;
+            else
+                registers->status &= ~FLAG_C;
+
+            if (result == 0)
+                registers->status |= FLAG_Z;
+            else
+                registers->status &= ~FLAG_Z;
+
+            registers->status &= ~FLAG_N;
+
+            CPU6502_write_memory(address, result);
+            break;
+        }
+        case 0x2E: { // ROL abs
+            registers->pc++;
+            uint8_t org_carry = (registers->status & FLAG_C) ? 1 : 0;
+            uint16_t address = read_word(registers);
+            uint8_t value = CPU6502_read_memory(address);
+            uint8_t result = value << 1 | org_carry;
+            if(value & 0x80)
+                registers->status |= FLAG_C;
+            else
+                registers->status &= ~FLAG_C;
+
+            if (result == 0)
+                registers->status |= FLAG_Z;
+            else
+                registers->status &= ~FLAG_Z;
+
+            if (result & 0x80)
+                registers->status |= FLAG_N;
+            else
+                registers->status &= ~FLAG_N;
+
+            CPU6502_write_memory(address, result);
+            break;
+        }
+        case 0x6E: { // ROR abs
+            registers->pc++;
+            uint8_t org_carry = (registers->status & FLAG_C) ? 1 : 0;
+            uint16_t address = read_word(registers);
+            uint8_t value = CPU6502_read_memory(address);
+            uint8_t result = (org_carry << 7) | value >> 1;
+            if(value & 0x01)
+                registers->status |= FLAG_C;
+            else
+                registers->status &= ~FLAG_C;
+
+            if (result == 0)
+                registers->status |= FLAG_Z;
+            else
+                registers->status &= ~FLAG_Z;
+
+            if (result & 0x80)
+                registers->status |= FLAG_N;
+            else
+                registers->status &= ~FLAG_N;
+
+            CPU6502_write_memory(address, result);
+            break;
+        }
+
         default:
             printf("Unknown opcode: %02X at address: %04X\r\n", opcode, registers->pc);
             printf("PC: %04X, A: %02X, X: %02X, Y: %02X, SP: %02X, Status: %02X\r\n", registers->pc, registers->a, registers->x, registers->y, registers->sp, registers->status);
