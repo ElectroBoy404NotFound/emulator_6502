@@ -1,5 +1,30 @@
 #include "6502.h"
 
+// Macro so that i don't close my mind
+#define BCD_ADC(reg, val, cin, status)                                      \
+    do {                                                                    \
+        uint8_t lo = ((reg) & 0x0F) + ((val) & 0x0F) + (cin);             \
+        if (lo > 9) lo += 6;                                               \
+        uint8_t hi = ((reg) >> 4) + ((val) >> 4) + (lo > 0x0F ? 1 : 0);  \
+        if (hi > 9) hi += 6;                                               \
+        if (hi > 0x0F) (status) |= FLAG_C;                                \
+        else           (status) &= ~FLAG_C;                                \
+        set_accumulator(registers, ((hi & 0x0F) << 4) | (lo & 0x0F));     \
+    } while(0)
+
+#define BCD_SBC(reg, val, cin, status)                                      \
+    do {                                                                    \
+        int16_t lo = ((reg) & 0x0F) - ((val) & 0x0F) - (1 - (cin));       \
+        int16_t hi = ((reg) >> 4)   - ((val) >> 4)   - (lo < 0 ? 1 : 0); \
+        if (lo < 0) lo += 10;                                              \
+        if (hi < 0) hi += 10;                                              \
+        uint16_t bin = (uint16_t)(reg) + (uint16_t)((uint8_t)~(val))      \
+                       + (uint16_t)(cin);                                   \
+        if (bin > 0xFF) (status) |= FLAG_C;                               \
+        else            (status) &= ~FLAG_C;                               \
+        set_accumulator(registers, ((hi & 0x0F) << 4) | (lo & 0x0F));     \
+    } while(0)
+
 void CPU6502_reset(CPU6502_Registers* registers) {
     registers->a = 0;
     registers->x = 0;
@@ -94,7 +119,7 @@ static inline void compare_reg(CPU6502_Registers* registers, uint8_t* reg, uint8
     else
         registers->status &= ~FLAG_N;
 
-    printf("CMP EXPECT %02X HAVE %02X\r\n", cmp_val, *reg);
+    // printf("CMP EXPECT %02X HAVE %02X\r\n", cmp_val, *reg);
 }
 
 uint16_t CPU6502_execute(CPU6502_Registers* registers) {
@@ -372,10 +397,77 @@ uint16_t CPU6502_execute(CPU6502_Registers* registers) {
             set_y(registers, registers->y + 1);
             break;
         }
+        case 0xEE: { // INC abs
+            registers->pc++;
+            uint16_t address = read_word(registers);
+            uint8_t value = CPU6502_read_memory(address) + 1;
+            CPU6502_write_memory(address, value);
+
+            if(value == 0)
+                registers->status |= FLAG_Z;
+            else
+                registers->status &= ~FLAG_Z;
+            
+            if(value & 0x80)
+                registers->status |= FLAG_N;
+            else
+                registers->status &= ~FLAG_N;
+
+            break;
+        }
         case 0xFE: { // INC abs X
             registers->pc++;
             uint16_t address = read_word(registers);
-            CPU6502_write_memory(address, CPU6502_read_memory(address) + 1);
+            address += registers->x;
+            uint8_t value = CPU6502_read_memory(address) + 1;
+            CPU6502_write_memory(address, value);
+
+            if(value == 0)
+                registers->status |= FLAG_Z;
+            else
+                registers->status &= ~FLAG_Z;
+            
+            if(value & 0x80)
+                registers->status |= FLAG_N;
+            else
+                registers->status &= ~FLAG_N;
+
+            break;
+        }
+        case 0xE6: { // INC zpg
+            registers->pc++;
+            uint8_t address = CPU6502_read_memory(registers->pc);
+            uint8_t value = CPU6502_read_memory(address) + 1;
+            CPU6502_write_memory(address, value);
+
+            if(value == 0)
+                registers->status |= FLAG_Z;
+            else
+                registers->status &= ~FLAG_Z;
+            
+            if(value & 0x80)
+                registers->status |= FLAG_N;
+            else
+                registers->status &= ~FLAG_N;
+
+            break;
+        }
+        case 0xF6: { // INC zpg X
+            registers->pc++;
+            uint8_t address = CPU6502_read_memory(registers->pc);
+            address += registers->x;
+            uint8_t value = CPU6502_read_memory(address) + 1;
+            CPU6502_write_memory(address, value);
+
+            if(value == 0)
+                registers->status |= FLAG_Z;
+            else
+                registers->status &= ~FLAG_Z;
+            
+            if(value & 0x80)
+                registers->status |= FLAG_N;
+            else
+                registers->status &= ~FLAG_N;
 
             break;
         }
@@ -387,10 +479,77 @@ uint16_t CPU6502_execute(CPU6502_Registers* registers) {
             set_y(registers, registers->y - 1);
             break;
         }
+        case 0xCE: { // DEC abs
+            registers->pc++;
+            uint16_t address = read_word(registers);
+            uint8_t value = CPU6502_read_memory(address) - 1;
+            CPU6502_write_memory(address, value);
+
+            if(value == 0)
+                registers->status |= FLAG_Z;
+            else
+                registers->status &= ~FLAG_Z;
+            
+            if(value & 0x80)
+                registers->status |= FLAG_N;
+            else
+                registers->status &= ~FLAG_N;
+
+            break;
+        }
         case 0xDE: { // DEC abs X
             registers->pc++;
             uint16_t address = read_word(registers);
-            CPU6502_write_memory(address, CPU6502_read_memory(address) - 1);
+            address += registers->x;
+            uint8_t value = CPU6502_read_memory(address) - 1;
+            CPU6502_write_memory(address, value);
+
+            if(value == 0)
+                registers->status |= FLAG_Z;
+            else
+                registers->status &= ~FLAG_Z;
+            
+            if(value & 0x80)
+                registers->status |= FLAG_N;
+            else
+                registers->status &= ~FLAG_N;
+
+            break;
+        }
+        case 0xC6: { // DEC zpg
+            registers->pc++;
+            uint8_t address = CPU6502_read_memory(registers->pc);
+            uint8_t value = CPU6502_read_memory(address) - 1;
+            CPU6502_write_memory(address, value);
+
+            if(value == 0)
+                registers->status |= FLAG_Z;
+            else
+                registers->status &= ~FLAG_Z;
+            
+            if(value & 0x80)
+                registers->status |= FLAG_N;
+            else
+                registers->status &= ~FLAG_N;
+
+            break;
+        }
+        case 0xD6: { // DEC zpg X
+            registers->pc++;
+            uint8_t address = CPU6502_read_memory(registers->pc);
+            address += registers->x;
+            uint8_t value = CPU6502_read_memory(address) - 1;
+            CPU6502_write_memory(address, value);
+
+            if(value == 0)
+                registers->status |= FLAG_Z;
+            else
+                registers->status &= ~FLAG_Z;
+            
+            if(value & 0x80)
+                registers->status |= FLAG_N;
+            else
+                registers->status &= ~FLAG_N;
 
             break;
         }
@@ -858,7 +1017,7 @@ uint16_t CPU6502_execute(CPU6502_Registers* registers) {
             registers->pc = jmp_address;
             registers->pc--;
 
-            printf("JSR %02x\r\n", jmp_address);
+            // printf("JSR %02x\r\n", jmp_address);
 
             break;
         }
@@ -872,7 +1031,7 @@ uint16_t CPU6502_execute(CPU6502_Registers* registers) {
 
             uint16_t jmp_address = (high_addr << 8) | low_addr;
             registers->pc = jmp_address;
-            printf("RTS %02x\r\n", jmp_address);
+            // printf("RTS %02x\r\n", jmp_address);
 
             break;
         }
@@ -910,27 +1069,6 @@ uint16_t CPU6502_execute(CPU6502_Registers* registers) {
         case 0xB8: { // CLV impl
             registers->status &= ~FLAG_V;
             
-            break;
-        }
-
-        case 0x69: { // ADC #
-            registers->pc++;
-            uint8_t value = CPU6502_read_memory(registers->pc);
-            uint16_t sum = registers->a + value + ((registers->status & FLAG_C) ? 1 : 0);
-            if(sum > 0xFF)
-                registers->status |= FLAG_C;
-            else
-                registers->status &= ~FLAG_C;
-
-            uint8_t result = sum & 0xFF;
-
-            if(((registers->a ^ result) & (value ^ result) & 0x80))
-                registers->status |= FLAG_V;
-            else
-                registers->status &= ~FLAG_V;
-
-            set_accumulator(registers, result);
-
             break;
         }
 
@@ -990,10 +1128,10 @@ uint16_t CPU6502_execute(CPU6502_Registers* registers) {
             registers->pc++;
 
             CPU6502_write_memory(0x0100 | registers->sp, (registers->pc >> 8) & 0xFF);
-            printf("BRK Wrote %02X as PC HI at %04X\r\n", (registers->pc >> 8) & 0xFF, 0x0100 | registers->sp);
+            // printf("BRK Wrote %02X as PC HI at %04X\r\n", (registers->pc >> 8) & 0xFF, 0x0100 | registers->sp);
             registers->sp--;
             CPU6502_write_memory(0x0100 | registers->sp, registers->pc & 0xFF);
-            printf("BRK Wrote %02X as PC LO at %04X\r\n", registers->pc & 0xFF, 0x0100 | registers->sp);
+            // printf("BRK Wrote %02X as PC LO at %04X\r\n", registers->pc & 0xFF, 0x0100 | registers->sp);
             registers->sp--;
 
             CPU6502_write_memory(0x0100 | registers->sp, (registers->status) | (FLAG_B | FLAG_U));
@@ -1259,6 +1397,601 @@ uint16_t CPU6502_execute(CPU6502_Registers* registers) {
                 registers->status &= ~FLAG_N;
 
             CPU6502_write_memory(address, result);
+            break;
+        }
+        case 0x16: { // ASL zpg X
+            registers->pc++;
+            uint8_t zp_address = CPU6502_read_memory(registers->pc);
+            zp_address += registers->x;
+            uint8_t value = CPU6502_read_memory(zp_address);
+            uint8_t result = value << 1;
+            if(value & 0x80)
+                registers->status |= FLAG_C;
+            else
+                registers->status &= ~FLAG_C;
+
+            if (result == 0)
+                registers->status |= FLAG_Z;
+            else
+                registers->status &= ~FLAG_Z;
+
+            if (result & 0x80)
+                registers->status |= FLAG_N;
+            else
+                registers->status &= ~FLAG_N;
+
+            CPU6502_write_memory(zp_address, result);
+            break;
+        }
+        case 0x56: { // LSR zpg X
+            registers->pc++;
+            uint8_t zp_address = CPU6502_read_memory(registers->pc);
+            zp_address += registers->x;
+            uint8_t value = CPU6502_read_memory(zp_address);
+            uint8_t result = value >> 1;
+            if(value & 0x01)
+                registers->status |= FLAG_C;
+            else
+                registers->status &= ~FLAG_C;
+
+            if (result == 0)
+                registers->status |= FLAG_Z;
+            else
+                registers->status &= ~FLAG_Z;
+
+            registers->status &= ~FLAG_N;
+
+            CPU6502_write_memory(zp_address, result);
+            break;
+        }
+        case 0x36: { // ROL zpg X
+            registers->pc++;
+            uint8_t org_carry = (registers->status & FLAG_C) ? 1 : 0;
+            uint8_t zp_address = CPU6502_read_memory(registers->pc);
+            zp_address += registers->x;
+            uint8_t value = CPU6502_read_memory(zp_address);
+            uint8_t result = value << 1 | org_carry;
+            if(value & 0x80)
+                registers->status |= FLAG_C;
+            else
+                registers->status &= ~FLAG_C;
+
+            if (result == 0)
+                registers->status |= FLAG_Z;
+            else
+                registers->status &= ~FLAG_Z;
+
+            if (result & 0x80)
+                registers->status |= FLAG_N;
+            else
+                registers->status &= ~FLAG_N;
+
+            CPU6502_write_memory(zp_address, result);
+            break;
+        }
+        case 0x76: { // ROR zpg X
+            registers->pc++;
+            uint8_t org_carry = (registers->status & FLAG_C) ? 1 : 0;
+            uint8_t zp_address = CPU6502_read_memory(registers->pc);
+            zp_address += registers->x;
+            uint8_t value = CPU6502_read_memory(zp_address);
+            uint8_t result = (org_carry << 7) | value >> 1;
+            if(value & 0x01)
+                registers->status |= FLAG_C;
+            else
+                registers->status &= ~FLAG_C;
+
+            if (result == 0)
+                registers->status |= FLAG_Z;
+            else
+                registers->status &= ~FLAG_Z;
+
+            if (result & 0x80)
+                registers->status |= FLAG_N;
+            else
+                registers->status &= ~FLAG_N;
+
+            CPU6502_write_memory(zp_address, result);
+            break;
+        }
+        case 0x1E: { // ASL abs X
+            registers->pc++;
+            uint16_t address = read_word(registers);
+            address += registers->x;
+            uint8_t value = CPU6502_read_memory(address);
+            uint8_t result = value << 1;
+            if(value & 0x80)
+                registers->status |= FLAG_C;
+            else
+                registers->status &= ~FLAG_C;
+
+            if (result == 0)
+                registers->status |= FLAG_Z;
+            else
+                registers->status &= ~FLAG_Z;
+
+            if (result & 0x80)
+                registers->status |= FLAG_N;
+            else
+                registers->status &= ~FLAG_N;
+
+            CPU6502_write_memory(address, result);
+            break;
+        }
+        case 0x5E: { // LSR abs X
+            registers->pc++;
+            uint16_t address = read_word(registers);
+            address += registers->x;
+            uint8_t value = CPU6502_read_memory(address);
+            uint8_t result = value >> 1;
+            if(value & 0x01)
+                registers->status |= FLAG_C;
+            else
+                registers->status &= ~FLAG_C;
+
+            if (result == 0)
+                registers->status |= FLAG_Z;
+            else
+                registers->status &= ~FLAG_Z;
+
+            registers->status &= ~FLAG_N;
+
+            CPU6502_write_memory(address, result);
+            break;
+        }
+        case 0x3E: { // ROL abs X
+            registers->pc++;
+            uint8_t org_carry = (registers->status & FLAG_C) ? 1 : 0;
+            uint16_t address = read_word(registers);
+            address += registers->x;
+            uint8_t value = CPU6502_read_memory(address);
+            uint8_t result = value << 1 | org_carry;
+            if(value & 0x80)
+                registers->status |= FLAG_C;
+            else
+                registers->status &= ~FLAG_C;
+
+            if (result == 0)
+                registers->status |= FLAG_Z;
+            else
+                registers->status &= ~FLAG_Z;
+
+            if (result & 0x80)
+                registers->status |= FLAG_N;
+            else
+                registers->status &= ~FLAG_N;
+
+            CPU6502_write_memory(address, result);
+            break;
+        }
+        case 0x7E: { // ROR abs
+            registers->pc++;
+            uint8_t org_carry = (registers->status & FLAG_C) ? 1 : 0;
+            uint16_t address = read_word(registers);
+            address += registers->x;
+            uint8_t value = CPU6502_read_memory(address);
+            uint8_t result = (org_carry << 7) | value >> 1;
+            if(value & 0x01)
+                registers->status |= FLAG_C;
+            else
+                registers->status &= ~FLAG_C;
+
+            if (result == 0)
+                registers->status |= FLAG_Z;
+            else
+                registers->status &= ~FLAG_Z;
+
+            if (result & 0x80)
+                registers->status |= FLAG_N;
+            else
+                registers->status &= ~FLAG_N;
+
+            CPU6502_write_memory(address, result);
+            break;
+        }
+
+        case 0x69: { // ADC #
+            registers->pc++;
+            uint8_t value = CPU6502_read_memory(registers->pc);
+            uint8_t carry_in = (registers->status & FLAG_C) ? 1 : 0;
+
+            if (registers->status & FLAG_D) {
+                BCD_ADC(registers->a, value, carry_in, registers->status);
+            } else {
+                uint16_t sum = registers->a + value + carry_in;
+                if (sum > 0xFF)
+                    registers->status |= FLAG_C;
+                else
+                    registers->status &= ~FLAG_C;
+
+                if (((registers->a ^ (uint8_t)sum) & (value ^ (uint8_t)sum) & 0x80))
+                    registers->status |= FLAG_V;
+                else
+                    registers->status &= ~FLAG_V;
+
+                set_accumulator(registers, sum & 0xFF);
+            }
+            break;
+        }
+
+        case 0x65: { // ADC zpg
+            registers->pc++;
+            uint8_t zp_address = CPU6502_read_memory(registers->pc);
+            uint8_t add_value = CPU6502_read_memory(zp_address);
+            uint8_t carry_in = (registers->status & FLAG_C) ? 1 : 0;
+            
+            if (registers->status & FLAG_D) {
+                BCD_ADC(registers->a, add_value, carry_in, registers->status);
+            } else {
+                uint16_t result = (uint16_t)registers->a + (uint16_t)add_value + (uint16_t)carry_in;
+
+                if (result > 0xFF)
+                    registers->status |= FLAG_C;
+                else
+                    registers->status &= ~FLAG_C;
+
+                if (((~(registers->a ^ add_value)) & (registers->a ^ (result & 0xFF))) & 0x80)
+                    registers->status |= FLAG_V;
+                else
+                    registers->status &= ~FLAG_V;
+
+                set_accumulator(registers, result & 0xFF);
+            }
+            break;
+        }
+        case 0x75: { // ADC zpg X
+            registers->pc++;
+            uint8_t zp_address = CPU6502_read_memory(registers->pc);
+            zp_address += registers->x;
+            uint8_t add_value = CPU6502_read_memory(zp_address);
+            uint8_t carry_in = (registers->status & FLAG_C) ? 1 : 0;
+            
+            if (registers->status & FLAG_D) {
+                BCD_ADC(registers->a, add_value, carry_in, registers->status);
+            } else {
+                uint16_t result = (uint16_t)registers->a + (uint16_t)add_value + (uint16_t)carry_in;
+                
+                if (result > 0xFF)
+                    registers->status |= FLAG_C;
+                else
+                    registers->status &= ~FLAG_C;
+
+                if (((~(registers->a ^ add_value)) & (registers->a ^ (result & 0xFF))) & 0x80)
+                    registers->status |= FLAG_V;
+                else
+                    registers->status &= ~FLAG_V;
+
+                set_accumulator(registers, result & 0xFF);
+            }
+            break;
+        }
+        case 0xE5: { // SBC zpg
+            registers->pc++;
+            uint8_t zp_address = CPU6502_read_memory(registers->pc);
+            uint8_t add_value = CPU6502_read_memory(zp_address);
+            uint8_t carry_in = (registers->status & FLAG_C) ? 1 : 0;
+            
+            if (registers->status & FLAG_D) {
+                BCD_SBC(registers->a, add_value, carry_in, registers->status);
+            } else {
+                uint16_t result = (uint16_t)registers->a + (uint16_t)((uint8_t)~add_value) + (uint16_t)carry_in;
+                
+                if (result > 0xFF)
+                    registers->status |= FLAG_C;
+                else
+                    registers->status &= ~FLAG_C;
+
+                if (((registers->a ^ add_value) & (registers->a ^ (result & 0xFF))) & 0x80)
+                    registers->status |= FLAG_V;
+                else
+                    registers->status &= ~FLAG_V;
+
+                set_accumulator(registers, result & 0xFF);
+            }
+            break;
+        }
+        case 0xF5: { // SBC zpg X
+            registers->pc++;
+            uint8_t zp_address = CPU6502_read_memory(registers->pc);
+            zp_address += registers->x;
+            uint8_t add_value = CPU6502_read_memory(zp_address);
+            uint8_t carry_in = (registers->status & FLAG_C) ? 1 : 0;
+            
+            if (registers->status & FLAG_D) {
+                BCD_SBC(registers->a, add_value, carry_in, registers->status);
+            } else {
+                uint16_t result = (uint16_t)registers->a + (uint16_t)((uint8_t)~add_value) + (uint16_t)carry_in;
+                
+                if (result > 0xFF)
+                    registers->status |= FLAG_C;
+                else
+                    registers->status &= ~FLAG_C;
+
+                if (((registers->a ^ add_value) & (registers->a ^ (result & 0xFF))) & 0x80)
+                    registers->status |= FLAG_V;
+                else
+                    registers->status &= ~FLAG_V;
+
+                set_accumulator(registers, result & 0xFF);
+            }
+            break;
+        }
+        case 0x6D: { // ADC abs
+            registers->pc++;
+            uint16_t address = read_word(registers);
+            uint8_t add_value = CPU6502_read_memory(address);
+            uint8_t carry_in = (registers->status & FLAG_C) ? 1 : 0;
+
+            if (registers->status & FLAG_D) {
+                BCD_ADC(registers->a, add_value, carry_in, registers->status);
+            } else {
+                uint16_t result = (uint16_t)registers->a + (uint16_t)add_value + (uint16_t)carry_in;
+                
+                if (result > 0xFF)
+                    registers->status |= FLAG_C;
+                else
+                    registers->status &= ~FLAG_C;
+
+                if (((~(registers->a ^ add_value)) & (registers->a ^ (result & 0xFF))) & 0x80)
+                    registers->status |= FLAG_V;
+                else
+                    registers->status &= ~FLAG_V;
+
+                set_accumulator(registers, result & 0xFF);
+            }
+            break;
+        }
+        case 0x7D: { // ADC abs X
+            registers->pc++;
+            uint16_t address = read_word(registers);
+            address += registers->x;
+            uint8_t add_value = CPU6502_read_memory(address);
+            uint8_t carry_in = (registers->status & FLAG_C) ? 1 : 0;
+
+            if (registers->status & FLAG_D) {
+                BCD_ADC(registers->a, add_value, carry_in, registers->status);
+            } else {
+                uint16_t result = (uint16_t)registers->a + (uint16_t)add_value + (uint16_t)carry_in;
+                
+                if (result > 0xFF)
+                    registers->status |= FLAG_C;
+                else
+                    registers->status &= ~FLAG_C;
+
+                if (((~(registers->a ^ add_value)) & (registers->a ^ (result & 0xFF))) & 0x80)
+                    registers->status |= FLAG_V;
+                else
+                    registers->status &= ~FLAG_V;
+
+                set_accumulator(registers, result & 0xFF);
+            }
+            break;
+        }
+        case 0x79: { // ADC abs Y
+            registers->pc++;
+            uint16_t address = read_word(registers);
+            address += registers->y;
+            uint8_t add_value = CPU6502_read_memory(address);
+            uint8_t carry_in = (registers->status & FLAG_C) ? 1 : 0;
+
+            if (registers->status & FLAG_D) {
+                BCD_ADC(registers->a, add_value, carry_in, registers->status);
+            } else {
+                uint16_t result = (uint16_t)registers->a + (uint16_t)add_value + (uint16_t)carry_in;
+                
+                if (result > 0xFF)
+                    registers->status |= FLAG_C;
+                else
+                    registers->status &= ~FLAG_C;
+
+                if (((~(registers->a ^ add_value)) & (registers->a ^ (result & 0xFF))) & 0x80)
+                    registers->status |= FLAG_V;
+                else
+                    registers->status &= ~FLAG_V;
+
+                set_accumulator(registers, result & 0xFF);
+            }
+            break;
+        }
+        case 0xED: { // SBC abs
+            registers->pc++;
+            uint16_t address = read_word(registers);
+            uint8_t add_value = CPU6502_read_memory(address);
+            uint8_t carry_in = (registers->status & FLAG_C) ? 1 : 0;
+            
+            if (registers->status & FLAG_D) {
+                BCD_SBC(registers->a, add_value, carry_in, registers->status);
+            } else {
+                uint16_t result = (uint16_t)registers->a + (uint16_t)((uint8_t)~add_value) + (uint16_t)carry_in;
+                
+                if (result > 0xFF)
+                    registers->status |= FLAG_C;
+                else
+                    registers->status &= ~FLAG_C;
+
+                if (((registers->a ^ add_value) & (registers->a ^ (result & 0xFF))) & 0x80)
+                    registers->status |= FLAG_V;
+                else
+                    registers->status &= ~FLAG_V;
+
+                set_accumulator(registers, result & 0xFF);
+            }
+            break;
+        }
+        case 0xFD: { // SBC abs X
+            registers->pc++;
+            uint16_t address = read_word(registers);
+            address += registers->x;
+            uint8_t add_value = CPU6502_read_memory(address);
+            uint8_t carry_in = (registers->status & FLAG_C) ? 1 : 0;
+            
+            if (registers->status & FLAG_D) {
+                BCD_SBC(registers->a, add_value, carry_in, registers->status);
+            } else {
+                uint16_t result = (uint16_t)registers->a + (uint16_t)((uint8_t)~add_value) + (uint16_t)carry_in;
+                
+                if (result > 0xFF)
+                    registers->status |= FLAG_C;
+                else
+                    registers->status &= ~FLAG_C;
+
+                if (((registers->a ^ add_value) & (registers->a ^ (result & 0xFF))) & 0x80)
+                    registers->status |= FLAG_V;
+                else
+                    registers->status &= ~FLAG_V;
+
+                set_accumulator(registers, result & 0xFF);
+            }
+            break;
+        }
+        case 0xF9: { // SBC abs Y
+            registers->pc++;
+            uint16_t address = read_word(registers);
+            address += registers->y;
+            uint8_t add_value = CPU6502_read_memory(address);
+            uint8_t carry_in = (registers->status & FLAG_C) ? 1 : 0;
+            
+            if (registers->status & FLAG_D) {
+                BCD_SBC(registers->a, add_value, carry_in, registers->status);
+            } else {
+                uint16_t result = (uint16_t)registers->a + (uint16_t)((uint8_t)~add_value) + (uint16_t)carry_in;
+                
+                if (result > 0xFF)
+                    registers->status |= FLAG_C;
+                else
+                    registers->status &= ~FLAG_C;
+
+                if (((registers->a ^ add_value) & (registers->a ^ (result & 0xFF))) & 0x80)
+                    registers->status |= FLAG_V;
+                else
+                    registers->status &= ~FLAG_V;
+
+                set_accumulator(registers, result & 0xFF);
+            }
+            break;
+        }
+        case 0xE9: { // SBC #
+            registers->pc++;
+            uint8_t add_value = CPU6502_read_memory(registers->pc);
+            uint8_t carry = (registers->status & FLAG_C) ? 1 : 0;
+            if (registers->status & FLAG_D) {
+                BCD_SBC(registers->a, add_value, carry, registers->status);
+            } else {
+                uint16_t result = (uint16_t)registers->a + (uint16_t)((uint8_t)~add_value) + (uint16_t)carry;
+                
+                if (result > 0xFF)
+                    registers->status |= FLAG_C;
+                else
+                    registers->status &= ~FLAG_C;
+
+                if (((registers->a ^ add_value) & (registers->a ^ (result & 0xFF))) & 0x80)
+                    registers->status |= FLAG_V;
+                else
+                    registers->status &= ~FLAG_V;
+
+                set_accumulator(registers, result & 0xFF);
+            }
+            break;
+        }
+        case 0x61: { // ADC X ind
+            registers->pc++;
+            uint8_t zp_address = CPU6502_read_memory(registers->pc);
+            zp_address += registers->x;
+            uint8_t add_value = CPU6502_read_memory(read_word_at_zp(zp_address));
+            uint8_t carry_in = (registers->status & FLAG_C) ? 1 : 0;
+            if (registers->status & FLAG_D) {
+                BCD_ADC(registers->a, add_value, carry_in, registers->status);
+            } else {
+                uint16_t result = (uint16_t)registers->a + (uint16_t)add_value + (uint16_t)carry_in;
+                
+                if (result > 0xFF)
+                    registers->status |= FLAG_C;
+                else
+                    registers->status &= ~FLAG_C;
+
+                if (((~(registers->a ^ add_value)) & (registers->a ^ (result & 0xFF))) & 0x80)
+                    registers->status |= FLAG_V;
+                else
+                    registers->status &= ~FLAG_V;
+
+                set_accumulator(registers, result & 0xFF);
+            }
+            break;
+        }
+        case 0x71: { // ADC ind Y
+            registers->pc++;
+            uint8_t zp_address = CPU6502_read_memory(registers->pc);
+            uint8_t add_value = CPU6502_read_memory(read_word_at_zp(zp_address) + registers->y);
+            uint8_t carry_in = (registers->status & FLAG_C) ? 1 : 0;
+
+            if (registers->status & FLAG_D) {
+                BCD_ADC(registers->a, add_value, carry_in, registers->status);
+            } else {
+                uint16_t result = (uint16_t)registers->a + (uint16_t)add_value + (uint16_t)carry_in;
+                
+                if (result > 0xFF)
+                    registers->status |= FLAG_C;
+                else
+                    registers->status &= ~FLAG_C;
+
+                if (((~(registers->a ^ add_value)) & (registers->a ^ (result & 0xFF))) & 0x80)
+                    registers->status |= FLAG_V;
+                else
+                    registers->status &= ~FLAG_V;
+
+                set_accumulator(registers, result & 0xFF);
+            }
+            break;
+        }
+        case 0xE1: { // SBC X ind
+            registers->pc++;
+            uint8_t zp_address = CPU6502_read_memory(registers->pc);
+            zp_address += registers->x;
+            uint8_t add_value = CPU6502_read_memory(read_word_at_zp(zp_address));
+            uint8_t carry_in = (registers->status & FLAG_C) ? 1 : 0;
+            
+            if (registers->status & FLAG_D) {
+                BCD_SBC(registers->a, add_value, carry_in, registers->status);
+            } else {
+                uint16_t result = (uint16_t)registers->a + (uint16_t)((uint8_t)~add_value) + (uint16_t)carry_in;
+                
+                if (result > 0xFF)
+                    registers->status |= FLAG_C;
+                else
+                    registers->status &= ~FLAG_C;
+
+                if (((registers->a ^ add_value) & (registers->a ^ (result & 0xFF))) & 0x80)
+                    registers->status |= FLAG_V;
+                else
+                    registers->status &= ~FLAG_V;
+
+                set_accumulator(registers, result & 0xFF);
+            }
+            break;
+        }
+        case 0xF1: { // SBC ind Y
+            registers->pc++;
+            uint8_t zp_address = CPU6502_read_memory(registers->pc);
+            uint8_t add_value = CPU6502_read_memory(read_word_at_zp(zp_address) + registers->y);
+            uint8_t carry_in = (registers->status & FLAG_C) ? 1 : 0;
+            
+            if (registers->status & FLAG_D) {
+                BCD_SBC(registers->a, add_value, carry_in, registers->status);
+            } else {
+                uint16_t result = (uint16_t)registers->a + (uint16_t)((uint8_t)~add_value) + (uint16_t)carry_in;
+                
+                if (result > 0xFF)
+                    registers->status |= FLAG_C;
+                else
+                    registers->status &= ~FLAG_C;
+
+                if (((registers->a ^ add_value) & (registers->a ^ (result & 0xFF))) & 0x80)
+                    registers->status |= FLAG_V;
+                else
+                    registers->status &= ~FLAG_V;
+
+                set_accumulator(registers, result & 0xFF);
+            }
             break;
         }
 

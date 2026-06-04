@@ -18,7 +18,7 @@ uint8_t CPU6502_read_memory(uint16_t address) {
 }
 
 void CPU6502_write_memory(uint16_t address, uint8_t value) {
-    printf("Write to memory: Address: %04X, Value: %02X\r\n", address, value);
+    // printf("Write to memory: Address: %04X, Value: %02X\r\n", address, value);
     mem[address] = value;
 }
 
@@ -51,11 +51,14 @@ int main() {
             break;
         }
 
-        printf("PC: %04X, A: %02X, X: %02X, Y: %02X, SP: %02X, Status: %02X\r\n", registers.pc, registers.a, registers.x, registers.y, registers.sp, registers.status);
+        // printf("PC: %04X, A: %02X, X: %02X, Y: %02X, SP: %02X, Status: %02X\r\n", registers.pc, registers.a, registers.x, registers.y, registers.sp, registers.status);
         if(last_pc == registers.pc) {
             printf("Looping at %04X during cycle %d. Exiting.\r\n", registers.pc, i);
             break;
         }
+
+        // if(i % 100000) 
+        //     printf("PC: %04X, A: %02X, X: %02X, Y: %02X, SP: %02X, Status: %02X\r\n", registers.pc, registers.a, registers.x, registers.y, registers.sp, registers.status);
         last_pc = registers.pc;
     }
     printf("Exited on cycle %d\r\n", i);
